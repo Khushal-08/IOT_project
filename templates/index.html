@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Smart Home · Occupancy & automation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 10 12 3l9 7v11h-7v-7h-4v7H3Z' fill='%235d7b9a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-temp" viewBox="0 0 24 24"><path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z"/><path d="M12 8v9"/><circle cx="12" cy="18" r="1"/></symbol>
+    <symbol id="i-light" viewBox="0 0 24 24"><path d="M9 17v-1c0-2-4-3-4-7a7 7 0 0 1 14 0c0 4-4 5-4 7v1Z"/><path d="M9 20h6m-5 3h4"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M11 10C4 5 10 0 14 3c2 2 0 5-1 7m1 1c8-2 9 5 5 7-3 1-5-2-6-4m-2 0c0 8-7 7-8 3 0-3 4-4 7-4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-command" viewBox="0 0 24 24"><path d="m5 6 5 6-5 6m8 0h6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon"><svg class="icon"><use href="#i-home"/></svg></span>Smart Home<span class="brand-divider"></span><span class="brand-subtitle">Room control</span></div>
+    <div class="connection" id="connection" role="status"><span class="dot"></span><span id="connection-text">Connecting</span></div>
+  </header>
+
+  <main>
+    <div class="page-heading">
+      <div><div class="eyebrow">HOME / LIVING ROOM</div><h1>A room that responds<span class="heading-dot">.</span></h1><p>Walk in. Let your room take care of the rest.</p></div>
+      <span class="source-badge" id="source-badge">Loading…</span>
+    </div>
+
+    <section id="walkthrough" class="walkthrough" aria-label="Automatic demonstration">
+      <div><strong>Watch the room think</strong><p id="demo-step" aria-live="polite">Ready to demonstrate automation.</p></div>
+      <div class="demo-buttons"><button id="demo-play" type="button">Play demo</button><button id="demo-pause" type="button">Pause</button><button id="demo-reset" type="button">Reset · Auto</button><button id="demo-emergency" type="button">Emergency demo</button><button id="alarm-sound" type="button" aria-pressed="false">Sound off</button></div>
+      <progress id="demo-progress" value="0" max="43" aria-label="Demo progress"></progress>
+      <small>Simulated sensor inputs · rules choose appliance states. Pause stops the sequence; safety countdown stays live.</small>
+    </section>
+    <div class="safety-banner" id="safety-banner" role="alert" hidden><span class="alarm-dot"></span><div><strong>Smoke detected · simulation alert</strong><span>Visibility light on. Fan stopped. Clear smoke to restore normal control.</span></div><button id="clear-smoke" type="button">Clear smoke</button></div>
+
+    <div class="workspace">
+      <section class="room-panel" aria-label="Room devices">
+        <article class="card room-view">
+          <div class="room-view-header"><div><h2>Living room <span class="occupancy-badge" id="occupancy-badge">0 inside</span></h2><span class="small-label" id="room-context">Daytime · room empty</span></div><div class="room-reading"><svg class="icon"><use href="#i-temp"/></svg><span id="temperature">—</span><span>°C</span></div></div>
+          <div class="room-scene is-offline" id="room-scene">
+            <svg class="room-illustration" id="room-illustration" viewBox="0 0 680 390" role="img" aria-label="Living room. Waiting for device connection.">
+              <defs>
+                <g id="person-shape"><ellipse cx="0" cy="2" rx="12" ry="3" fill="#354441" opacity=".12"/><path d="M-5-17-6 0M5-17 7 0" stroke="#5b6874" stroke-width="5" stroke-linecap="round"/><path d="M-8-34Q0-39 8-34L10-17H-10Z" fill="currentColor"/><path d="M-8-32-13-20M8-32 13-20" stroke="#cba787" stroke-width="4" stroke-linecap="round"/><circle cy="-45" r="8" fill="#d6b391"/><path d="M-8-47Q-7-58 3-54Q10-53 8-44L5-49Z" fill="#5c544e"/></g>
+                <radialGradient id="lamp-glow"><stop offset="0" stop-color="#ffe5a8" stop-opacity=".85"/><stop offset="1" stop-color="#ffe5a8" stop-opacity="0"/></radialGradient>
+                <linearGradient id="lamp-beam" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffe2a0" stop-opacity=".4"/><stop offset="1" stop-color="#ffe2a0" stop-opacity="0"/></linearGradient>
+                <filter id="room-shadow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="5"/></filter>
+              </defs>
+              <!-- A small illustrated room; only confirmed device state changes its light and fan. -->
+              <path class="room-wall" d="M0 0H680V285H0Z"/>
+              <path class="room-side-wall" d="M0 0 40 24V277L0 319Z"/>
+              <path class="room-floor" d="M40 275H680V390H0V317Z"/>
+              <path d="M40 275H680M40 24V275" stroke="#fff" stroke-opacity=".55" fill="none"/>
+              <path d="M0 341H680M0 374H680M113 275 65 390M282 275 273 390M455 275 482 390M619 275 680 390" stroke="#8e8474" stroke-opacity=".08" fill="none"/>
+              <!-- Window, sill and curtains. -->
+              <rect x="82" y="79" width="133" height="153" rx="5" fill="#000" opacity=".035"/>
+              <rect x="87" y="74" width="125" height="149" rx="4" fill="#fafbf9"/>
+              <rect class="window-sky" x="94" y="81" width="111" height="134" rx="2" fill="#d7e4e9"/>
+              <circle class="window-sun" cx="180" cy="105" r="10" fill="#f5dfaa"/><path class="window-moon" d="M184 94A12 12 0 1 0 193 113A12 12 0 0 1 184 94" fill="#f0e9cd"/>
+              <path d="M94 164 132 137 159 157 183 139 205 155V215H94Z" fill="#c4d4cf"/>
+              <path d="M94 189 143 167 172 187 205 172V215H94Z" fill="#b5c8bc"/>
+              <path d="M149 81V215M94 148H205" stroke="#fafbf9" stroke-width="6"/>
+              <rect x="78" y="220" width="143" height="8" rx="3" fill="#f8f9f6"/>
+              <path d="M75 73H224" stroke="#b4b8b3" stroke-width="3" stroke-linecap="round"/>
+              <path d="M77 76H102L98 230H76Z" fill="#e1dfd6"/><path d="M198 76H223V230H202Z" fill="#e1dfd6"/>
+              <path d="M84 80 82 222M91 80 90 223M210 80 212 222M217 80 219 222" stroke="#c5c3b9" stroke-opacity=".4"/>
+              <!-- Picture and shelf. -->
+              <rect x="600" y="99" width="66" height="183" rx="3" fill="#c4c0b5"/><rect x="604" y="103" width="58" height="176" fill="#7e8178"/>
+              <g id="room-door-leaf"><rect x="604" y="103" width="58" height="176" rx="2" fill="#cbbda9"/><rect x="611" y="112" width="44" height="157" rx="2" fill="none" stroke="#b4a48e"/><circle cx="615" cy="196" r="3" fill="#857764"/></g>
+              <rect x="427" y="100" width="58" height="72" rx="3" fill="#bba993"/>
+              <rect x="432" y="105" width="48" height="62" rx="1" fill="#f7f5ee"/>
+              <circle cx="456" cy="124" r="9" fill="#ddc6a3"/><path d="M439 158 451 137 461 149 474 131V160Z" fill="#a8b5a7"/>
+              <rect x="250" y="149" width="92" height="5" rx="2" fill="#c2b39f"/>
+              <rect x="263" y="132" width="9" height="17" rx="1" fill="#9faea5"/><rect x="274" y="128" width="7" height="21" rx="1" fill="#cfbba3"/>
+              <path d="M304 148Q294 128 306 122Q318 129 309 148" fill="#bdc6ba"/>
+              <!-- Ceiling fan. Rotor spins within a perspective projection. -->
+              <ellipse cx="350" cy="34" rx="18" ry="5" fill="#c8cecc"/>
+              <path d="M350 35V82" stroke="#9aa5a4" stroke-width="5"/>
+              <ellipse cx="350" cy="81" rx="13" ry="6" fill="#b0bab7"/>
+              <g transform="translate(350 88) scale(1 .42)">
+                <g class="room-fan-rotor" id="room-fan-rotor" fill="#8e9d96" stroke="#83938c" stroke-width="1">
+                  <path id="fan-blade" d="M-9-6C-17-30-10-91 4-99C18-107 29-91 24-75L8-4Z"/>
+                  <use href="#fan-blade" transform="rotate(120)"/><use href="#fan-blade" transform="rotate(240)"/>
+                </g>
+              </g>
+              <ellipse cx="350" cy="89" rx="14" ry="8" fill="#c1cac5"/><ellipse cx="350" cy="91" rx="9" ry="5" fill="#a5b1aa"/>
+              <!-- Floor shadows, rug and sofa. -->
+              <ellipse cx="349" cy="319" rx="172" ry="18" fill="#4b574b" opacity=".07" filter="url(#room-shadow)"/>
+              <ellipse cx="350" cy="330" rx="157" ry="37" fill="#ddd9cb"/><ellipse cx="350" cy="330" rx="146" ry="31" fill="none" stroke="#f1eee5" stroke-width="2"/>
+              <path d="M237 282V313M452 282V313" stroke="#8b806f" stroke-width="7" stroke-linecap="round"/>
+              <rect x="232" y="204" width="226" height="87" rx="17" fill="#abb8ad"/>
+              <rect x="244" y="211" width="98" height="60" rx="12" fill="#bdc8bd"/><rect x="348" y="211" width="98" height="60" rx="12" fill="#b8c4b8"/>
+              <rect x="229" y="264" width="233" height="34" rx="11" fill="#aab9ac"/>
+              <rect x="218" y="246" width="31" height="52" rx="10" fill="#b4c2b5"/><rect x="441" y="246" width="31" height="52" rx="10" fill="#b4c2b5"/>
+              <path d="M250 279H439" stroke="#899d8c" stroke-opacity=".3"/>
+              <rect x="261" y="232" width="37" height="33" rx="6" fill="#eee7d8" transform="rotate(-11 279 248)"/>
+              <rect x="397" y="232" width="32" height="32" rx="6" fill="#d7c6b2" transform="rotate(13 413 248)"/>
+              <!-- Coffee table, cup and book. -->
+              <path d="M310 327 306 354M386 327 392 354" stroke="#a48b70" stroke-width="5" stroke-linecap="round"/>
+              <ellipse cx="349" cy="323" rx="62" ry="18" fill="#c2a88b"/><ellipse cx="349" cy="319" rx="62" ry="17" fill="#d9c4a7"/>
+              <path d="m327 314 29-4 13 10-29 4Z" fill="#f0eee5"/><path d="m327 314 13 9 29-4" fill="none" stroke="#a4b4ad" stroke-width="2"/>
+              <ellipse cx="377" cy="317" rx="8" ry="3" fill="#bca88d"/><path d="M372 307H382V315Q377 320 372 315Z" fill="#faf7ed"/><path d="M382 309Q390 308 386 314H382" stroke="#faf7ed" fill="none" stroke-width="2"/>
+              <!-- Plant. -->
+              <ellipse cx="146" cy="305" rx="25" ry="5" fill="#4b574b" opacity=".07"/>
+              <path d="M127 271H165L159 304H134Z" fill="#c3ad95"/><ellipse cx="146" cy="271" rx="19" ry="5" fill="#b69e82"/>
+              <path d="M146 271V222M146 254 127 239M146 245 164 226M146 260 165 249" stroke="#81937a" stroke-width="3" fill="none"/>
+              <ellipse cx="140" cy="224" rx="7" ry="17" fill="#9ba98a" transform="rotate(-23 140 224)"/><ellipse cx="125" cy="238" rx="7" ry="15" fill="#a6b397" transform="rotate(-48 125 238)"/><ellipse cx="164" cy="225" rx="8" ry="16" fill="#879d80" transform="rotate(38 164 225)"/><ellipse cx="166" cy="249" rx="7" ry="14" fill="#9ba98a" transform="rotate(56 166 249)"/>
+              <!-- Standing lamp: glow and beam respond to the light command. -->
+              <g class="room-light-effect" aria-hidden="true"><ellipse cx="554" cy="200" rx="122" ry="153" fill="url(#lamp-glow)"/><path d="M528 162H577L626 320H477Z" fill="url(#lamp-beam)"/><ellipse cx="552" cy="316" rx="83" ry="20" fill="url(#lamp-glow)"/></g>
+              <ellipse cx="552" cy="310" rx="28" ry="6" fill="#69736d" opacity=".08"/>
+              <path d="M552 164V305" stroke="#9c9487" stroke-width="4"/><ellipse cx="552" cy="305" rx="22" ry="5" fill="#b0a491"/>
+              <path class="room-lampshade" d="M534 126H570L583 166Q552 176 521 166Z"/><ellipse class="room-lamp-bulb" cx="552" cy="167" rx="29" ry="6"/>
+              <g id="room-people" aria-hidden="true"><use href="#person-shape" x="480" y="326" color="#91a89e"/><use href="#person-shape" x="447" y="342" color="#9babc0"/><use href="#person-shape" x="520" y="340" color="#bd9f87"/><use href="#person-shape" x="188" y="326" color="#9eaa85"/></g>
+              <g id="walking-person" class="walking-person" color="#869faa" aria-hidden="true"><use href="#person-shape"/></g>
+              <g class="room-smoke" aria-hidden="true"><g class="smoke-cloud smoke-a"><circle cx="390" cy="240" r="35"/><circle cx="420" cy="219" r="43"/><circle cx="459" cy="235" r="31"/></g><g class="smoke-cloud smoke-b"><circle cx="303" cy="188" r="33"/><circle cx="337" cy="173" r="46"/><circle cx="375" cy="189" r="37"/></g><g class="smoke-cloud smoke-c"><circle cx="458" cy="122" r="41"/><circle cx="501" cy="110" r="45"/></g></g>
+            </svg>
+            <div class="room-offline-message" id="room-offline-message">Room disconnected<span>Reconnect to see live changes.</span></div>
+            <div class="room-live-caption"><span id="scene-light-label">Light off</span><span class="scene-caption-divider"></span><span id="scene-fan-label">Fan stopped</span></div>
+          </div>
+          <div class="room-view-footer"><span class="condition" id="condition">Waiting for sensor</span><span class="small-label" id="sensor-note">Live room reading</span></div>
+        </article>
+
+        <div class="decision-panel" aria-live="polite"><strong>Why did it react?</strong><p id="light-decision"></p><p id="fan-decision"></p><small id="brightness-reading"></small><p id="alarm-decision"></p></div>
+        <div class="presence-controls"><div class="entry-buttons"><button type="button" id="enter-room" class="primary-soft">Enter room <span>↗</span></button><button type="button" id="exit-room">Leave room <span>↙</span></button></div><div class="segmented daylight-control" aria-label="Daylight"><button type="button" id="day-mode" aria-pressed="true">☀ Day</button><button type="button" id="night-mode" aria-pressed="false">☾ Night</button></div></div>
+        <div class="countdown-banner" id="countdown-banner" role="status" hidden>Room empty. Switching appliances off in <strong id="countdown-value">10</strong>s. <span>Re-enter to cancel.</span></div>
+
+        <div class="device-grid">
+          <article class="card device-card" id="light-card">
+            <div class="compact-control"><div class="control-name"><svg class="icon"><use href="#i-light"/></svg><h2>Light</h2><span class="device-status" id="light-status">—</span></div><button class="toggle" id="light-toggle" type="button" role="switch" aria-label="Light" aria-checked="false" disabled><span></span></button></div>
+            <span class="sr-only" id="light-caption">Room light</span>
+          </article>
+
+          <article class="card device-card" id="fan-card">
+            <div class="compact-control"><div class="control-name"><svg class="icon"><use href="#i-fan"/></svg><h2>Fan</h2><span class="device-status" id="fan-status">—</span></div><button class="toggle" id="fan-toggle" type="button" role="switch" aria-label="Fan" aria-checked="false" disabled><span></span></button></div>
+            <span class="sr-only" id="fan-description">Keep the air moving.</span>
+          </article>
+        </div>
+        <div class="mode-controls"><div><span class="small-label">Light</span><div class="segmented" aria-label="Light mode"><button id="light-manual-mode" type="button" aria-pressed="false" disabled>Manual</button><button id="light-auto-mode" type="button" aria-pressed="true" disabled>Auto</button></div></div><div><span class="small-label">Fan</span><div class="segmented" aria-label="Fan mode"><button id="manual-mode" type="button" aria-pressed="false" disabled>Manual</button><button id="auto-mode" type="button" aria-pressed="true" disabled>Auto</button></div></div></div>
+        <p class="automation-note" id="automation-summary"><svg class="icon"><use href="#i-check"/></svg><span>Auto light: occupied + dark. Auto fan: occupied + above 30°C.</span></p>
+
+        <div class="smoke-test-row"><div><span class="small-label">Safety demonstration</span><span>Virtual smoke sensor</span></div><button id="simulate-smoke" type="button">Simulate smoke</button></div>
+
+        <details class="simulation" id="simulation" hidden>
+          <summary><span class="simulation-title">Local simulator <span class="small-label">For your project demo</span></span><span class="disclosure" aria-hidden="true">+</span></summary>
+          <div class="simulation-content">
+            <div class="range-heading"><label for="temperature-input">Room temperature</label><output id="temperature-output" for="temperature-input">26°C</output></div>
+            <input type="range" id="temperature-input" min="16" max="40" step="0.5" value="26">
+            <div class="simulation-bottom"><span class="small-label">Virtual devices · no hardware required</span><button class="text-button" id="demo-connection" type="button">Disconnect simulator</button></div>
+          </div>
+        </details>
+        <div id="notice" class="notice" role="status" hidden></div>
+      </section>
+
+      <section class="card chat-panel" aria-labelledby="chat-heading">
+        <div class="chat-header"><div class="label-with-icon"><span class="icon-tile"><svg class="icon"><use href="#i-command"/></svg></span><div><h2 id="chat-heading">Commands</h2><p class="small-label">Another way to control your room</p></div></div><span class="chat-label">TEXT CONTROL</span></div>
+        <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Command conversation">
+          <div class="message assistant"><span class="message-label">HOME</span><p>Your room is ready.</p><p class="message-secondary">Try “night mode”, then “enter room”. The light takes care of itself.</p></div>
+        </div>
+        <div class="chat-bottom">
+          <div class="suggestions" aria-label="Suggested commands"><button type="button" data-command="enter room">Enter room <span>↗</span></button><button type="button" data-command="night mode">Night mode <span>↗</span></button><button type="button" data-command="energy usage">Energy use <span>↗</span></button></div>
+          <form id="chat-form"><label for="chat-input" class="sr-only">Type a room command</label><input id="chat-input" name="message" placeholder="Type a command…" autocomplete="off" maxlength="200" required><button id="send-button" type="submit" aria-label="Send command"><svg class="icon"><use href="#i-arrow"/></svg></button></form>
+          <div class="chat-footnote" id="chat-footnote" role="status">Simple commands for your room.</div>
+        </div>
+      </section>
+    </div>
+    <div class="insights-grid">
+      <section class="card energy-panel" aria-labelledby="energy-heading"><div class="insight-heading"><div><h2 id="energy-heading">A little less energy.</h2><p>Session estimates, based on appliance runtime.</p></div><span class="source-badge">ESTIMATED</span></div><div class="energy-metrics"><div><strong id="energy-wh">0.000</strong><span>Wh used</span></div><div><strong id="energy-cost">₹0.0000</strong><span>estimated cost</span></div><div><strong id="energy-saved">0.000</strong><span>Wh avoided*</span></div></div><div class="energy-device"><span>Light · 9 W</span><div><span class="energy-bar" id="light-energy-bar"></span></div><span id="light-runtime">0s</span></div><div class="energy-device"><span>Fan · 60 W</span><div><span class="energy-bar fan-energy" id="fan-energy-bar"></span></div><span id="fan-runtime">0s</span></div><p class="energy-disclaimer">₹8/kWh assumed. *Compared with both devices running continuously during connected time. No physical energy meter.</p></section>
+      <section class="card activity-panel" aria-labelledby="activity-heading"><div class="insight-heading"><div><h2 id="activity-heading">What happened, and why.</h2><p>Sensor events and confirmed automation decisions.</p></div><span class="event-count" id="event-count">0 events</span></div><ol id="activity-log" class="activity-log" aria-label="Room activity"><li>Waiting for the room…</li></ol></section>
+    </div>
+    <footer><span>One room. Everything in reach.</span><span>IoT mini project <span class="footer-dot">·</span> <span id="footer-source">Software simulation</span></span></footer>
+  </main>
+</body>
+</html>
